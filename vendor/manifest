@@ -1,0 +1,22 @@
+{
+	"version": 0,
+	"dependencies": [
+		{
+			"importpath": "github.com/byuoitav/authmiddleware",
+			"repository": "https://github.com/byuoitav/authmiddleware",
+			"vcs": "git",
+			"revision": "55d4b191ff73207534b101fad95d536f116cb610",
+			"branch": "master",
+			"notests": true
+		},
+		{
+			"importpath": "github.com/byuoitav/device-monitoring-microservice/statusinfrastructure",
+			"repository": "https://github.com/byuoitav/device-monitoring-microservice",
+			"vcs": "git",
+			"revision": "f5f92a15908263ac4f2292373a84182770317cc8",
+			"branch": "master",
+			"path": "/statusinfrastructure",
+			"notests": true
+		}
+	]
+}

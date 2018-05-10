@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/byuoitav/configuration-database-microservice/structs"
 
@@ -13,22 +14,49 @@ import (
 	newstructs "github.com/byuoitav/common/structs"
 )
 
+var buildingList []structs.Building
+var roomList []structs.Room
+var configList []structs.RoomConfiguration
+var deviceClassList []structs.DeviceClass
+
+var typePortMap map[string][]structs.DeviceTypePort
+
+var COUCH_ADDRESS string
+var COUCH_USERNAME string
+var COUCH_PASSWORD string
+
 func main() {
 
-	buildingList, err := dbo.GetBuildings()
-	roomList, err := dbo.GetRooms()
-	configList, err := dbo.GetRoomConfigurations()
+	var err error
+
+	buildingList, err = dbo.GetBuildings()
+	roomList, err = dbo.GetRooms()
+	configList, err = dbo.GetRoomConfigurations()
+	deviceClassList, err = dbo.GetDeviceClasses()
 	if err != nil {
 		log.Printf("Failed to get info from old config db : %s", err.Error())
 	}
 
-	moveBuildings(buildingList)
-	moveRooms(buildingList, roomList, configList)
-	moveRoomConfigurations(buildingList, roomList, configList)
-	moveDevicesAndTypes(buildingList, roomList)
+	COUCH_ADDRESS = os.Getenv("COUCH_ADDRESS")
+	COUCH_USERNAME = os.Getenv("COUCH_USERNAME")
+	COUCH_PASSWORD = os.Getenv("COUCH_PASSWORD")
+
+	typePortMap = make(map[string][]structs.DeviceTypePort)
+
+	for _, t := range deviceClassList {
+		typePortMap[t.Name], err = dbo.GetPortsByClass(t.Name)
+		if err != nil {
+			log.Printf("Failed to get info from old config db : %s", err.Error())
+		}
+	}
+
+	moveBuildings()
+	moveRooms()
+	moveRoomConfigurations()
+	moveDevicesAndTypes()
 }
 
-func moveBuildings(buildingList []structs.Building) {
+func moveBuildings() {
 	log.Print("Starting moveBuildings...")
 
 	for i := range buildingList {
@@ -36,9 +64,10 @@ func moveBuildings(buildingList []structs.Building) {
 		bldg := newstructs.Building{}
 
 		bldg.ID = buildingList[i].Shortname
+		bldg.Name = buildingList[i].Name
 		bldg.Description = buildingList[i].Description
 
-		url := fmt.Sprintf("http://localhost:5984/buildings/%s", bldg.ID)
+		url := fmt.Sprintf("%v/buildings/%v", COUCH_ADDRESS, bldg.ID)
 
 		body, err := json.Marshal(bldg)
 		if err != nil {
@@ -50,6 +79,11 @@ func moveBuildings(buildingList []structs.Building) {
 		if err != nil {
 			log.Printf("Error making request : %s", err.Error())
 			return
+		}
+
+		// add auth
+		if len(COUCH_USERNAME) > 0 && len(COUCH_PASSWORD) > 0 {
+			req.SetBasicAuth(COUCH_USERNAME, COUCH_PASSWORD)
 		}
 
 		client := &http.Client{}
@@ -64,7 +98,7 @@ func moveBuildings(buildingList []structs.Building) {
 	}
 }
 
-func moveRooms(buildingList []structs.Building, roomList []structs.Room, configList []structs.RoomConfiguration) {
+func moveRooms() {
 	log.Print("Starting moveRooms...")
 
 	for _, r := range roomList {
@@ -94,7 +128,7 @@ func moveRooms(buildingList []structs.Building, roomList []structs.Room, configL
 		room.Configuration = config
 		room.Designation = r.RoomDesignation
 
-		url := fmt.Sprintf("http://localhost:5984/rooms/%s", room.ID)
+		url := fmt.Sprintf("%v/rooms/%v", COUCH_ADDRESS, room.ID)
 
 		body, err := json.Marshal(room)
 		if err != nil {
@@ -106,6 +140,11 @@ func moveRooms(buildingList []structs.Building, roomList []structs.Room, configL
 		if err != nil {
 			log.Printf("Error making request : %s", err.Error())
 			return
+		}
+
+		// add auth
+		if len(COUCH_USERNAME) > 0 && len(COUCH_PASSWORD) > 0 {
+			req.SetBasicAuth(COUCH_USERNAME, COUCH_PASSWORD)
 		}
 
 		client := &http.Client{}
@@ -120,7 +159,7 @@ func moveRooms(buildingList []structs.Building, roomList []structs.Room, configL
 	}
 }
 
-func moveRoomConfigurations(buildingList []structs.Building, roomList []structs.Room, configList []structs.RoomConfiguration) {
+func moveRoomConfigurations() {
 	log.Print("Starting moveRoomConfigurations...")
 
 	for _, c := range configList {
@@ -158,7 +197,7 @@ func moveRoomConfigurations(buildingList []structs.Building, roomList []structs.
 		config.Description = c.Description
 		config.Evaluators = evals
 
-		url := fmt.Sprintf("http://localhost:5984/room_configurations/%s", config.ID)
+		url := fmt.Sprintf("%v/room_configurations/%v", COUCH_ADDRESS, config.ID)
 
 		body, err := json.Marshal(config)
 		if err != nil {
@@ -170,6 +209,11 @@ func moveRoomConfigurations(buildingList []structs.Building, roomList []structs.
 		if err != nil {
 			log.Printf("Error making request : %s", err.Error())
 			return
+		}
+
+		// add auth
+		if len(COUCH_USERNAME) > 0 && len(COUCH_PASSWORD) > 0 {
+			req.SetBasicAuth(COUCH_USERNAME, COUCH_PASSWORD)
 		}
 
 		client := &http.Client{}
@@ -184,10 +228,10 @@ func moveRoomConfigurations(buildingList []structs.Building, roomList []structs.
 	}
 }
 
-func moveDevicesAndTypes(buildingList []structs.Building, roomList []structs.Room) {
+func moveDevicesAndTypes() {
 
 	totalPortList, err := dbo.GetPorts()
-	deviceClassList, err := dbo.GetDeviceClasses()
+
 	microserviceList, err := dbo.GetMicroservices()
 	endpointList, err := dbo.GetEndpoints()
 
@@ -255,7 +299,7 @@ func moveDevicesAndTypes(buildingList []structs.Building, roomList []structs.Roo
 					deviceType.ID = t.Name
 					deviceType.Description = t.Description
 
-					typePortList, _ := dbo.GetPortsByClass(t.Name)
+					typePortList := typePortMap[t.Name]
 
 					ports := make([]newstructs.Port, len(typePortList))
 
@@ -305,7 +349,7 @@ func moveDevicesAndTypes(buildingList []structs.Building, roomList []structs.Roo
 			}
 
 			// // Send the Device to Couch
-			url := fmt.Sprintf("http://localhost:5984/devices/%s", device.ID)
+			url := fmt.Sprintf("%v/devices/%v", COUCH_ADDRESS, device.ID)
 
 			body, err := json.Marshal(device)
 			if err != nil {
@@ -319,6 +363,11 @@ func moveDevicesAndTypes(buildingList []structs.Building, roomList []structs.Roo
 				return
 			}
 
+			// add auth
+			if len(COUCH_USERNAME) > 0 && len(COUCH_PASSWORD) > 0 {
+				req.SetBasicAuth(COUCH_USERNAME, COUCH_PASSWORD)
+			}
+
 			client := &http.Client{}
 
 			resp, err := client.Do(req)
@@ -330,7 +379,7 @@ func moveDevicesAndTypes(buildingList []structs.Building, roomList []structs.Roo
 			resp.Body.Close()
 
 			// Send the DeviceType to Couch
-			url2 := fmt.Sprintf("http://localhost:5984/device_types/%s", deviceType.ID)
+			url2 := fmt.Sprintf("%v/device_types/%v", COUCH_ADDRESS, deviceType.ID)
 
 			body2, err := json.Marshal(deviceType)
 			if err != nil {
@@ -342,6 +391,11 @@ func moveDevicesAndTypes(buildingList []structs.Building, roomList []structs.Roo
 			if err != nil {
 				log.Printf("Error making request : %s", err.Error())
 				return
+			}
+
+			// add auth
+			if len(COUCH_USERNAME) > 0 && len(COUCH_PASSWORD) > 0 {
+				req.SetBasicAuth(COUCH_USERNAME, COUCH_PASSWORD)
 			}
 
 			resp2, err := client.Do(req2)

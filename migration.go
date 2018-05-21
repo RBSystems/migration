@@ -34,7 +34,7 @@ func main() {
 	configList, err = dbo.GetRoomConfigurations()
 	deviceClassList, err = dbo.GetDeviceClasses()
 	if err != nil {
-		log.Printf("Failed to get info from old config db : %s", err.Error())
+		log.Printf("Failed to get info from old config db : %v", err.Error())
 	}
 
 	COUCH_ADDRESS = os.Getenv("COUCH_ADDRESS")
@@ -46,7 +46,7 @@ func main() {
 	for _, t := range deviceClassList {
 		typePortMap[t.Name], err = dbo.GetPortsByClass(t.Name)
 		if err != nil {
-			log.Printf("Failed to get info from old config db : %s", err.Error())
+			log.Printf("Failed to get info from old config db : %v", err.Error())
 		}
 	}
 
@@ -194,7 +194,7 @@ func moveRoomConfigurations() {
 		}
 
 		config.ID = c.Name
-		config.Description = c.Description
+		config.Description = c.RoomInitKey
 		config.Evaluators = evals
 
 		url := fmt.Sprintf("%v/room_configurations/%v", COUCH_ADDRESS, config.ID)
@@ -231,7 +231,6 @@ func moveRoomConfigurations() {
 func moveDevicesAndTypes() {
 
 	totalPortList, err := dbo.GetPorts()
-
 	microserviceList, err := dbo.GetMicroservices()
 	endpointList, err := dbo.GetEndpoints()
 

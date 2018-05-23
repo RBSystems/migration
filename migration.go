@@ -37,9 +37,13 @@ func main() {
 		log.Printf("Failed to get info from old config db : %v", err.Error())
 	}
 
-	COUCH_ADDRESS = os.Getenv("COUCH_ADDRESS")
-	COUCH_USERNAME = os.Getenv("COUCH_USERNAME")
-	COUCH_PASSWORD = os.Getenv("COUCH_PASSWORD")
+	COUCH_ADDRESS = os.Getenv("DB_ADDRESS")
+	COUCH_USERNAME = os.Getenv("DB_USERNAME")
+	COUCH_PASSWORD = os.Getenv("DB_PASSWORD")
+
+	log.Printf(COUCH_ADDRESS)
+	log.Printf(COUCH_USERNAME)
+	log.Printf(COUCH_PASSWORD)
 
 	typePortMap = make(map[string][]structs.DeviceTypePort)
 
@@ -50,10 +54,33 @@ func main() {
 		}
 	}
 
-	moveBuildings()
-	moveRooms()
-	moveRoomConfigurations()
-	moveDevicesAndTypes()
+	stop := false
+	if len(buildingList) < 1 {
+		log.Printf("Empty building list")
+		stop = true
+	}
+	if len(roomList) < 1 {
+		log.Printf("Empty room list")
+		stop = true
+	}
+	if len(configList) < 1 {
+		log.Printf("Empty config list")
+		stop = true
+	}
+	if len(deviceClassList) < 1 {
+		log.Printf("Empty device class list")
+		stop = true
+	}
+	if len(typePortMap) < 1 {
+		log.Printf("Empty type port map list")
+		stop = true
+	}
+	if !stop {
+		moveBuildings()
+		moveRooms()
+		moveRoomConfigurations()
+		moveDevicesAndTypes()
+	}
 }
 
 func moveBuildings() {
@@ -317,7 +344,7 @@ func moveDevicesAndTypes() {
 						commandList[k].Description = command.Name
 
 						for _, m := range microserviceList {
-							if command.Name == m.Address {
+							if command.Microservice == m.Address {
 								micro := newstructs.Microservice{}
 
 								micro.ID = m.Name
@@ -348,7 +375,7 @@ func moveDevicesAndTypes() {
 			}
 
 			// // Send the Device to Couch
-			url := fmt.Sprintf("%v/devices/%v", COUCH_ADDRESS, device.ID)
+			url := fmt.Sprintf("%s/devices/%s", COUCH_ADDRESS, device.ID)
 
 			body, err := json.Marshal(device)
 			if err != nil {
@@ -378,7 +405,7 @@ func moveDevicesAndTypes() {
 			resp.Body.Close()
 
 			// Send the DeviceType to Couch
-			url2 := fmt.Sprintf("%v/device_types/%v", COUCH_ADDRESS, deviceType.ID)
+			url2 := fmt.Sprintf("%s/device_types/%s", COUCH_ADDRESS, deviceType.ID)
 
 			body2, err := json.Marshal(deviceType)
 			if err != nil {
@@ -394,7 +421,7 @@ func moveDevicesAndTypes() {
 
 			// add auth
 			if len(COUCH_USERNAME) > 0 && len(COUCH_PASSWORD) > 0 {
-				req.SetBasicAuth(COUCH_USERNAME, COUCH_PASSWORD)
+				req2.SetBasicAuth(COUCH_USERNAME, COUCH_PASSWORD)
 			}
 
 			resp2, err := client.Do(req2)

@@ -20,6 +20,7 @@ var configList []structs.RoomConfiguration
 var deviceClassList []structs.DeviceClass
 
 var typePortMap map[string][]structs.DeviceTypePort
+var commandNameMap map[string]structs.RawCommand
 
 var COUCH_ADDRESS string
 var COUCH_USERNAME string
@@ -30,57 +31,49 @@ func main() {
 	var err error
 
 	buildingList, err = dbo.GetBuildings()
+	if err != nil {
+		log.Printf("Failed to get info from old config db : %s", err.Error())
+	}
 	roomList, err = dbo.GetRooms()
+	if err != nil {
+		log.Printf("Failed to get info from old config db : %s", err.Error())
+	}
 	configList, err = dbo.GetRoomConfigurations()
+	if err != nil {
+		log.Printf("Failed to get info from old config db : %s", err.Error())
+	}
 	deviceClassList, err = dbo.GetDeviceClasses()
 	if err != nil {
-		log.Printf("Failed to get info from old config db : %v", err.Error())
+		log.Printf("Failed to get info from old config db : %s", err.Error())
+	}
+	allCommands, err := dbo.GetAllRawCommands()
+	if err != nil {
+		log.Printf("Failed to get info from old config db : %s", err.Error())
 	}
 
 	COUCH_ADDRESS = os.Getenv("DB_ADDRESS")
 	COUCH_USERNAME = os.Getenv("DB_USERNAME")
 	COUCH_PASSWORD = os.Getenv("DB_PASSWORD")
 
-	log.Printf(COUCH_ADDRESS)
-	log.Printf(COUCH_USERNAME)
-	log.Printf(COUCH_PASSWORD)
-
 	typePortMap = make(map[string][]structs.DeviceTypePort)
 
 	for _, t := range deviceClassList {
 		typePortMap[t.Name], err = dbo.GetPortsByClass(t.Name)
 		if err != nil {
-			log.Printf("Failed to get info from old config db : %v", err.Error())
+			log.Printf("Failed to get info from old config db : %s", err.Error())
 		}
 	}
 
-	stop := false
-	if len(buildingList) < 1 {
-		log.Printf("Empty building list")
-		stop = true
+	commandNameMap = make(map[string]structs.RawCommand)
+
+	for _, c := range allCommands {
+		commandNameMap[c.Name] = c
 	}
-	if len(roomList) < 1 {
-		log.Printf("Empty room list")
-		stop = true
-	}
-	if len(configList) < 1 {
-		log.Printf("Empty config list")
-		stop = true
-	}
-	if len(deviceClassList) < 1 {
-		log.Printf("Empty device class list")
-		stop = true
-	}
-	if len(typePortMap) < 1 {
-		log.Printf("Empty type port map list")
-		stop = true
-	}
-	if !stop {
-		moveBuildings()
-		moveRooms()
-		moveRoomConfigurations()
-		moveDevicesAndTypes()
-	}
+
+	moveBuildings()
+	moveRooms()
+	moveRoomConfigurations()
+	moveDevicesAndTypes()
 }
 
 func moveBuildings() {
@@ -256,7 +249,9 @@ func moveRoomConfigurations() {
 }
 
 func moveDevicesAndTypes() {
-
+	log.Printf("Building list size: %v", len(buildingList))
+	log.Printf("Room list size: %v", len(roomList))
+	log.Printf("Config list size: %v", len(configList))
 	totalPortList, err := dbo.GetPorts()
 	microserviceList, err := dbo.GetMicroservices()
 	endpointList, err := dbo.GetEndpoints()
@@ -266,7 +261,6 @@ func moveDevicesAndTypes() {
 	}
 
 	for _, r := range roomList {
-
 		bName := ""
 		for _, b := range buildingList {
 			if r.Building.ID == b.ID {
@@ -311,8 +305,8 @@ func moveDevicesAndTypes() {
 					}
 				}
 
-				portList[j].SourceDevice = port.Source
-				portList[j].DestinationDevice = port.Destination
+				portList[j].SourceDevice = fmt.Sprintf("%s-%s-%s", bName, r.Name, port.Source)
+				portList[j].DestinationDevice = fmt.Sprintf("%s-%s-%s", bName, r.Name, port.Destination)
 			}
 
 			device.Ports = portList
@@ -324,6 +318,8 @@ func moveDevicesAndTypes() {
 				if d.Class == t.Name {
 					deviceType.ID = t.Name
 					deviceType.Description = t.Description
+					deviceType.Input = d.Input
+					deviceType.Output = d.Output
 
 					typePortList := typePortMap[t.Name]
 
@@ -342,6 +338,7 @@ func moveDevicesAndTypes() {
 					for k, command := range d.Commands {
 						commandList[k].ID = command.Name
 						commandList[k].Description = command.Name
+						commandList[k].Priority = commandNameMap[command.Name].Priority
 
 						for _, m := range microserviceList {
 							if command.Microservice == m.Address {

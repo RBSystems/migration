@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 
 	"github.com/byuoitav/configuration-database-microservice/structs"
 
 	"github.com/byuoitav/av-api/dbo"
+	"github.com/byuoitav/common/log"
 	newstructs "github.com/byuoitav/common/structs"
 )
 
@@ -32,23 +32,23 @@ func main() {
 
 	buildingList, err = dbo.GetBuildings()
 	if err != nil {
-		log.Printf("Failed to get info from old config db : %s", err.Error())
+		log.L.Errorf("Failed to get info from old config db : %v", err)
 	}
 	roomList, err = dbo.GetRooms()
 	if err != nil {
-		log.Printf("Failed to get info from old config db : %s", err.Error())
+		log.L.Errorf("Failed to get info from old config db : %v", err)
 	}
 	configList, err = dbo.GetRoomConfigurations()
 	if err != nil {
-		log.Printf("Failed to get info from old config db : %s", err.Error())
+		log.L.Errorf("Failed to get info from old config db : %v", err)
 	}
 	deviceClassList, err = dbo.GetDeviceClasses()
 	if err != nil {
-		log.Printf("Failed to get info from old config db : %s", err.Error())
+		log.L.Errorf("Failed to get info from old config db : %v", err)
 	}
 	allCommands, err := dbo.GetAllRawCommands()
 	if err != nil {
-		log.Printf("Failed to get info from old config db : %s", err.Error())
+		log.L.Errorf("Failed to get info from old config db : %v", err)
 	}
 
 	COUCH_ADDRESS = os.Getenv("DB_ADDRESS")
@@ -60,9 +60,11 @@ func main() {
 	for _, t := range deviceClassList {
 		typePortMap[t.Name], err = dbo.GetPortsByClass(t.Name)
 		if err != nil {
-			log.Printf("Failed to get info from old config db : %s", err.Error())
+			log.L.Errorf("Failed to get info from old config db : %v", err)
 		}
 	}
+
+	// log.L.Infof("%s", typePortMap)
 
 	commandNameMap = make(map[string]structs.RawCommand)
 
@@ -77,7 +79,7 @@ func main() {
 }
 
 func moveBuildings() {
-	log.Print("Starting moveBuildings...")
+	log.L.Info("Starting moveBuildings...")
 
 	for i := range buildingList {
 
@@ -91,13 +93,13 @@ func moveBuildings() {
 
 		body, err := json.Marshal(bldg)
 		if err != nil {
-			log.Printf("Cannot marshal building : %s", err.Error())
+			log.L.Errorf("Cannot marshal building : %v", err)
 			return
 		}
 
 		req, err := http.NewRequest("PUT", url, bytes.NewReader(body))
 		if err != nil {
-			log.Printf("Error making request : %s", err.Error())
+			log.L.Errorf("Error making request : %v", err)
 			return
 		}
 
@@ -110,7 +112,7 @@ func moveBuildings() {
 
 		resp, err := client.Do(req)
 		if err != nil {
-			log.Printf("Error doing request : %s", err.Error())
+			log.L.Errorf("Error doing request : %v", err)
 			return
 		}
 
@@ -119,7 +121,7 @@ func moveBuildings() {
 }
 
 func moveRooms() {
-	log.Print("Starting moveRooms...")
+	log.L.Info("Starting moveRooms...")
 
 	for _, r := range roomList {
 
@@ -152,13 +154,13 @@ func moveRooms() {
 
 		body, err := json.Marshal(room)
 		if err != nil {
-			log.Printf("Cannot marshal room : %s", err.Error())
+			log.L.Errorf("Cannot marshal room : %v", err)
 			return
 		}
 
 		req, err := http.NewRequest("PUT", url, bytes.NewReader(body))
 		if err != nil {
-			log.Printf("Error making request : %s", err.Error())
+			log.L.Errorf("Error making request : %v", err)
 			return
 		}
 
@@ -171,7 +173,7 @@ func moveRooms() {
 
 		resp, err := client.Do(req)
 		if err != nil {
-			log.Printf("Error doing request : %s", err.Error())
+			log.L.Errorf("Error doing request : %v", err)
 			return
 		}
 
@@ -180,7 +182,7 @@ func moveRooms() {
 }
 
 func moveRoomConfigurations() {
-	log.Print("Starting moveRoomConfigurations...")
+	log.L.Info("Starting moveRoomConfigurations...")
 
 	for _, c := range configList {
 
@@ -217,17 +219,19 @@ func moveRoomConfigurations() {
 		config.Description = c.RoomInitKey
 		config.Evaluators = evals
 
+		log.L.Info(config)
+
 		url := fmt.Sprintf("%v/room_configurations/%v", COUCH_ADDRESS, config.ID)
 
 		body, err := json.Marshal(config)
 		if err != nil {
-			log.Printf("Cannot marshal room configuration : %s", err.Error())
+			log.L.Errorf("Cannot marshal room configuration : %v", err)
 			return
 		}
 
 		req, err := http.NewRequest("PUT", url, bytes.NewReader(body))
 		if err != nil {
-			log.Printf("Error making request : %s", err.Error())
+			log.L.Errorf("Error making request : %v", err)
 			return
 		}
 
@@ -240,7 +244,7 @@ func moveRoomConfigurations() {
 
 		resp, err := client.Do(req)
 		if err != nil {
-			log.Printf("Error doing request : %s", err.Error())
+			log.L.Errorf("Error doing request : %v", err)
 			return
 		}
 
@@ -249,15 +253,15 @@ func moveRoomConfigurations() {
 }
 
 func moveDevicesAndTypes() {
-	log.Printf("Building list size: %v", len(buildingList))
-	log.Printf("Room list size: %v", len(roomList))
-	log.Printf("Config list size: %v", len(configList))
+	log.L.Infof("Building list size: %v", len(buildingList))
+	log.L.Infof("Room list size: %v", len(roomList))
+	log.L.Infof("Config list size: %v", len(configList))
 	totalPortList, err := dbo.GetPorts()
 	microserviceList, err := dbo.GetMicroservices()
 	endpointList, err := dbo.GetEndpoints()
 
 	if err != nil {
-		log.Printf("Failed to get info from old config db : %s", err.Error())
+		log.L.Errorf("Failed to get info from old config db : %v", err)
 	}
 
 	for _, r := range roomList {
@@ -376,13 +380,13 @@ func moveDevicesAndTypes() {
 
 			body, err := json.Marshal(device)
 			if err != nil {
-				log.Printf("Cannot marshal device : %s", err.Error())
+				log.L.Errorf("Cannot marshal device : %v", err)
 				return
 			}
 
 			req, err := http.NewRequest("PUT", url, bytes.NewReader(body))
 			if err != nil {
-				log.Printf("Error making request : %s", err.Error())
+				log.L.Errorf("Error making request : %v", err)
 				return
 			}
 
@@ -395,7 +399,7 @@ func moveDevicesAndTypes() {
 
 			resp, err := client.Do(req)
 			if err != nil {
-				log.Printf("Error doing request : %s", err.Error())
+				log.L.Errorf("Error doing request : %v", err)
 				return
 			}
 
@@ -406,13 +410,13 @@ func moveDevicesAndTypes() {
 
 			body2, err := json.Marshal(deviceType)
 			if err != nil {
-				log.Printf("Cannot marshal device type : %s", err.Error())
+				log.L.Errorf("Cannot marshal device type : %v", err)
 				return
 			}
 
 			req2, err := http.NewRequest("PUT", url2, bytes.NewReader(body2))
 			if err != nil {
-				log.Printf("Error making request : %s", err.Error())
+				log.L.Errorf("Error making request : %v", err)
 				return
 			}
 
@@ -423,7 +427,7 @@ func moveDevicesAndTypes() {
 
 			resp2, err := client.Do(req2)
 			if err != nil {
-				log.Printf("Error doing request : %s", err.Error())
+				log.L.Errorf("Error doing request : %v", err)
 				return
 			}
 
